@@ -1,0 +1,48 @@
+import json
+import boto3
+import logging
+import os
+
+# Initialize the SNS client
+sns_client = boto3.client('sns')
+
+# Use environment variable for the SNS topic ARN
+SNS_TOPIC_ARN = os.getenv('SNS_TOPIC_ARN')
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger()
+
+def lambda_handler(event, context):
+    for record in event['Records']:
+        if record['eventName'] in ['INSERT', 'MODIFY']:
+            # Extract the relevant fields from NewImage
+            new_image = record['dynamodb'].get('NewImage', {})
+            email = new_image.get('email', {}).get('S', '')       # Extracting email
+            first_name = new_image.get('fname', {}).get('S', '')  # Extracting fname
+            last_name = new_image.get('lname', {}).get('S', '')   # Extracting lname
+            username = new_image.get('username', {}).get('S', '') # Extracting username
+
+            # Create a message with the required fields
+            message = {
+                'Yooo Biashhh there has been changes in this email account'
+                'email': email,
+                'first_name': first_name,
+                'last_name': last_name,
+                'username': username
+            }
+            
+            try:
+                sns_client.publish(
+                    TopicArn=SNS_TOPIC_ARN,
+                    Message=json.dumps(message),
+                    Subject='DynamoDB Table Change Notification'
+                )
+                logger.info(f"Successfully published message for event: {record['eventName']}")
+            except Exception as e:
+                logger.error(f"Error publishing message: {e}")
+
+    return {
+        'statusCode': 200,
+        'body': json.dumps('Processed DynamoDB stream records.')
+    }
